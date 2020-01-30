@@ -14,6 +14,52 @@ typedef struct sockaddr_in 	sockaddr_in;
 typedef struct hostent 		hostent;
 typedef struct servent 		servent;
 
+/*******************Type structuré de joueur **************/
+#pragma pack(1)
+struct Joueur
+{
+  int id_sock; //id de la socket du client, par defaut elle vaut 0
+  char pseudo[20];
+  int symbole;  // 1 ou 2
+};
+#pragma pack(0)
+/*********************Type structuré de la grille ***************************************/
+#pragma pack(1)
+struct Grille
+{
+  int grille[8];
+  int identifiant;
+};
+#pragma pack(0)
+typedef struct Grille Grille;
+
+/********************** Thread qui écoute si des données doivent être affichées */
+static void * sniffer(void * socket_desc)
+{
+  char buffer[3000];
+  int * socket = (int *) socket_desc;
+  int longueur;
+    while (1)
+    {  
+      if((longueur = read(*socket, buffer, (int)sizeof(buffer)))<=0)
+        exit(1);
+      buffer[longueur]='\0';
+      printf("%s \n", buffer); 
+    }
+}
+
+//**********************************Création instance joueur
+ Joueur ajouterJoueur () {
+   Joueur j;
+	 
+   j.id_sock = 0; //0 par defaut
+   printf("\n\n Bienvenue au jeu du Morpion\n\n");
+   printf("Donnez votre pseudo : \n");
+   scanf("%s", &(j.pseudo));
+    printf("\nVous êtes prêt à jouer! \n");
+    return j;
+ }
+
 int main(int argc, char **argv) {
 
     int 	socket_descriptor, 	/* descripteur de socket */
@@ -25,6 +71,8 @@ int main(int argc, char **argv) {
     char *	prog; 			/* nom du programme */
     char *	host; 			/* nom de la machine distante */
     char *	mesg; 			/* message envoyé */
+    pthread_t 	sniffer_thread;
+
 
     if (argc != 3) {
 	perror("usage : client <adresse-serveur> <message-a-transmettre>");
@@ -47,21 +95,6 @@ int main(int argc, char **argv) {
     /* copie caractere par caractere des infos de ptr_host vers adresse_locale */
     bcopy((char*)ptr_host->h_addr, (char*)&adresse_locale.sin_addr, ptr_host->h_length);
     adresse_locale.sin_family = AF_INET; /* ou ptr_host->h_addrtype; */
-
-    /* 2 facons de definir le service que l'on va utiliser a distance */
-    /* (commenter l'une ou l'autre des solutions) */
-
-    /*-----------------------------------------------------------*/
-    /* SOLUTION 1 : utiliser un service existant, par ex. "irc" */
-    /*
-    if ((ptr_service = getservbyname("irc","tcp")) == NULL) {
-	perror("erreur : impossible de recuperer le numero de port du service desire.");
-	exit(1);
-    }
-    adresse_locale.sin_port = htons(ptr_service->s_port);
-    */
-    /*-----------------------------------------------------------*/
-
     /*-----------------------------------------------------------*/
     /* SOLUTION 2 : utiliser un nouveau numero de port */
     adresse_locale.sin_port = htons(5000);
@@ -85,24 +118,39 @@ int main(int argc, char **argv) {
 
     printf("envoi d'un message au serveur. \n");
 
-    /* envoi du message vers le serveur */
-    if ((write(socket_descriptor, mesg, strlen(mesg))) < 0) {
-	perror("erreur : impossible d'ecrire le message destine au serveur.");
-	exit(1);
-    }
-
-    /* mise en attente du prgramme pour simuler un delai de transmission */
-    sleep(3);
-
-    printf("message envoye au serveur. \n");
-
+    Joueur joueur ; 
+    joueur = ajouterJoueur();
+    joueur.id_sock = socket_descriptor;	
+    
+    //Transmission du joueur au serveur echoué
+    if( send(socket_descriptor , &joueur, sizeof(Joueur),0) < 0)
+    {
+        puts("Transmission joueur impossible. \n");
+        return 1;
+    }  
+    //Création thread client
+    pthread_create(&sniffer_thread, NULL, sniffer, &socket_descriptor);
+	
+	
     /* lecture de la reponse en provenance du serveur */
     while((longueur = read(socket_descriptor, buffer, sizeof(buffer))) > 0) {
 	printf("reponse du serveur : \n");
 	write(1,buffer,longueur);
     }
-
-    printf("\nfin de la reception.\n");
+      
+      printf("A vous de jouer! Positionnez votre pion (de 0 à 8)");	
+    // verifier la saisie de l'utilisateur
+      while (strcmp(msg,"0")==0 or strcmp(msg,"1")==0 or strcmp(msg,"2")==0 and strcmp(msg,"3")==0 or strcmp(msg,"4")==0 or strcmp(msg,"5")==0 or strcmp(msg,"6")==0 or strcmp(msg,"7")==0 or strcmp(msg,"8")==0)
+     {
+      fgets(msg,sizeof(msg),stdin);
+      msg[strcspn(msg,"\n")]='\0';
+    //echec envoi serveur
+        if( send(socket_descriptor , msg, sizeof(msg),0) < 0)
+        {
+            puts("Impossible d'enregistrer votre tour\n");
+            exit(1);
+        }
+      }
 
     close(socket_descriptor);
 
