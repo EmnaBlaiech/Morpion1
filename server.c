@@ -17,41 +17,31 @@ typedef struct sockaddr sockaddr;
 typedef struct sockaddr_in sockaddr_in;
 typedef struct hostent hostent;
 typedef struct servent servent;
-int joueurs[3];
-int grille[8];
 
+/*******************Type structuré de joueurs **************/
+#pragma pack(1)
+struct Joueur
+{
+  int id_sock; //id de la socket du client, par defaut elle vaut 0
+  char pseudo[20];
+  int symbole;  // 1 ou 2
+};
+#pragma pack(0)
+typedef struct Joueur Joueur;
+/*********************Type structuré de la grille ***************************************/
+#pragma pack(1)
+struct Grille
+{
+  int matrice[8];
+  int identifiant;
+};
+#pragma pack(0)
+typedef struct Grille Grille;
 
-/*------------------------------------------------------*/
-void renvoi (int sock) {
+Joueur JoueursCo[3]; //tableau des joueurs connectés maximum 4 joueurs, 2 par partie
+int nombre_joueurs=0;
 
-    char buffer[256];
-    int longueur;
-
-    if ((longueur = read(sock, buffer, sizeof(buffer))) <= 0)
-    	return;
-
-    printf("message lu : %s \n", buffer);
-
-    buffer[0] = 'R';
-    buffer[1] = 'E';
-    buffer[longueur] = '#';
-    buffer[longueur+1] ='\0';
-
-    printf("message apres traitement : %s \n", buffer);
-
-    printf("renvoi du message traite.\n");
-
-
-    /* mise en attente du prgramme pour simuler un delai de transmission */
-    sleep(3);
-
-    write(sock,buffer,strlen(buffer)+1);
-
-    printf("message envoye. \n");
-
-    return;
-
-}
+// procédure initialise la grille à 0
 void initialiser_grille (){
   int i;
 
@@ -66,11 +56,11 @@ void afficher_grille{ //affichage de la grille du morpion
 
     for (x=0;x<=8;x++){
       println("_______________");
-      println("| "+transforme(grille[0])+" | "+transforme(grille[1])+" | "+transforme(grille[2])+" | ");
+      println("| "+transforme(grille.matrice[0])+" | "+transforme(grille.matrice[1])+" | "+transforme(grille.matrice[2])+" | ");
       println("_______________");
-      println("| "+transforme(grille[3])+" | "+transforme(grille[4])+" | "+transforme(grille[5])+" | ");
+      println("| "+transforme(grille.matrice[3])+" | "+transforme(grille.matrice[4])+" | "+transforme(grille.matrice[5])+" | ");
       println("_______________");
-      println("| "+transforme(grille[6])+" | "+transforme(grille[7])+" | "+transforme(grille[8])+" | ");
+      println("| "+transforme(grille.matrice[6])+" | "+transforme(grille.matrice[7])+" | "+transforme(grille.matrice[8])+" | ");
       println("_______________");
 
     }
@@ -79,21 +69,6 @@ void afficher_grille{ //affichage de la grille du morpion
 char transforme (int a) {   //transforme les chiffres de la  grille en caractere pour l'affichage de la grille
   if (a == 1) {return "X";}
   else {return "O";}
-}
-
-void saisie_tour(int joueur){
-  int choix;  //stocke la réponse du joueur
-
-  affiche_grille(grille);   //affciher l'état de la grille actuel
-  printf("Au tour du joueur %d de positionner son pion %d ", joueur , joueurs[joueur] );
-//  listen(socket_descriptor,5); // attente du message du client
-//  choix = message du client // lire le message et stocker la reponse !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  do{
-    print("veuillez choisir une case vide entre 0 et 8 ");
-//    listen(socket_descriptor,5); // attente du message du client
-//    choix = message du client // lire le message et stocker la reponse !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  } while ((choix <=8 || choix >=0) && (grille[choix] = 0) ;
-  grille[choix] = joueurs[joueur];  //positionne le pion du joueur courant
 }
 
 boolean verifier_match_null(){
@@ -113,14 +88,14 @@ bool verifier_gagnant(){
   int scores[7]; // ligne1, ligne2, ligne3, col1, col2, col3, diag1, diag2
   int k;
 
-  scores[0] = grille[0] + grille[1] + grille[2];  //ligne1
-  scores[1] = grille[3] + grille[4] + grille[5];  //ligne2
-  scores[2] = grille[6] + grille[7] + grille[8];  //ligne3
-  scores[3] = grille[0] + grille[3] + grille[6];  //col1
-  scores[4] = grille[1] + grille[4] + grille[7];  //col2
-  scores[5] = grille[2] + grille[5] + grille[8];  //col3
-  scores[6] = grille[0] + grille[4] + grille[8];  //diag1
-  scores[7] = grille[2] + grille[4] + grille[6];  //diag2
+  scores[0] = grille.matrice[0] + grille.matrice[1] + grille.matrice[2];  //ligne1
+  scores[1] = grille.matrice[3] + grille.matrice[4] + grille.matrice[5];  //ligne2
+  scores[2] = grille.matrice[6] + grille.matrice[7] + grille.matrice[8];  //ligne3
+  scores[3] = grille.matrice[0] + grille.matrice[3] + grille.matrice[6];  //col1
+  scores[4] = grille.matrice[1] + grille.matrice[4] + grille.matrice[7];  //col2
+  scores[5] = grille.matrice[2] + grille.matrice[5] + grille.matrice[8];  //col3
+  scores[6] = grille.matrice[0] + grille.matrice[4] + grille.matrice[8];  //diag1
+  scores[7] = grille.matrice[2] + grille.matrice[4] + grille.matrice[6];  //diag2
   k=0;
   do{
     if (scores[k] == 3){
@@ -137,18 +112,46 @@ bool verifier_gagnant(){
 return gagnant;
 }
 
-// traitement dans le thread
-void *thread_1(void *arg)
-{
-    printf("Nous sommes dans le thread.\n");
+/*------------------------------------------------------*/
+void *GererJoueur(void *socket_descriptor) {
+    Joueur joueur;
+    //Get the socket descriptor
+    int sock = *(int*)socket_descriptor;
+    int read_size=0, current_index;
+    char *message , client_message[256];
 
-    /* Pour enlever le warning */
-    (void) arg;
-    pthread_exit(NULL);
+    //Recevoir le message du client
+    if(read_size = recv(sock , &joueur , sizeof(Joueur) , 0) > 0 )
+    {
+       //enregistrer le client dans le tableau des clients
+       current_index = getCurrentUserIndex(sock);
+       joueur.id_sock=sock;
+       JoueursCo[current_index] = joueur;
+    }
+    else
+    {
+      perror("Erreur : impossible d'enregistrer le client sur le server.");
+      exit(1);
+    }
+while (1)
+{
+  
+  affiche_grille(grille);   //affciher l'état de la grille actuel
+
+do{	  
+	  read_size = recv(sock, client_message, sizeof(client_message),0);
+	  client_message[read_size]='\0';
+	  choix = atoi(client_message); 	// convertir le message en entier
+	  
+  } while ((choix <=8 || choix >=0) && (grille.matrice[choix] = 0) ;
+  grille.matrice[choix] = joueur.symbole;  //positionne le pion du joueur courant
+  message = grille !!!! envoyer grille a jour!
+ write(sock,message,strlen(message)+1);
+}
+}
+	
 }
 
-
-/*------------------------------------------------------*/
 
 /*------------------------------------------------------*/
 main(int argc, char **argv) {
@@ -161,7 +164,7 @@ main(int argc, char **argv) {
     hostent*		ptr_hote; 			/* les infos recuperees sur la machine hote */
     servent*		ptr_service; 			/* les infos recuperees sur le service de la machine */
     char 		machine[TAILLE_MAX_NOM+1]; 	/* nom de la machine locale */
-    pthread_t thread1;  /* creation de thread  */
+    pthread_t 		thread ;  			/* creation de thread  */
     gethostname(machine,TAILLE_MAX_NOM);		/* recuperation du nom de la machine */
 
     /* recuperation de la structure d'adresse en utilisant le nom */
@@ -177,18 +180,6 @@ main(int argc, char **argv) {
     adresse_locale.sin_family		= ptr_hote->h_addrtype; 	/* ou AF_INET */
     adresse_locale.sin_addr.s_addr	= INADDR_ANY; 			/* ou AF_INET */
 
-    /* 2 facons de definir le service que l'on va utiliser a distance */
-    /* (commenter l'une ou l'autre des solutions) */
-
-    /*-----------------------------------------------------------*/
-    /* SOLUTION 1 : utiliser un service existant, par ex. "irc" */
-    /*
-    if ((ptr_service = getservbyname("irc","tcp")) == NULL) {
-		perror("erreur : impossible de recuperer le numero de port du service desire.");
-		exit(1);
-    }
-    adresse_locale.sin_port = htons(ptr_service->s_port);
-    */
     /*-----------------------------------------------------------*/
     /* SOLUTION 2 : utiliser un nouveau numero de port */
     adresse_locale.sin_port = htons(5000);
@@ -209,51 +200,39 @@ main(int argc, char **argv) {
 		exit(1);
     }
 
-    /* initialisation de la file d'ecoute */
-    listen(socket_descriptor,5);
+/* initialisation de la file d'ecoute */
+listen(socket_descriptor,5);
+initialiser_grille();
 
     /* attente des connexions et traitement des donnees recues */
-    for(;;) {
-    cpt = 0;  //compter le nombre de connexion/clients
-		longueur_adresse_courante = sizeof(adresse_client_courant);
+longueur_adresse_courante = sizeof(adresse_client_courant);
+while(nouv_socket_descriptor = accept(socket_descriptor,(sockaddr*)(&adresse_client_courant),&longueur_adresse_courante)) {
+/* traitement du message */
+printf("Connexion acceptée.\n");
+//affectation de la valeur du socket au user
+JoueursCo[nombre_joueurs].id_sock = nouv_socket_descriptor;
 
-		/* adresse_client_courant sera renseigné par accept via les infos du connect */
-		if ((nouv_socket_descriptor =
-			accept(socket_descriptor,
-			       (sockaddr*)(&adresse_client_courant),
-			       &longueur_adresse_courante))
-			 < 0)
-       {
-			perror("erreur : impossible d'accepter la connexion avec le client.");
-			exit(1);
-		}
-    else { // a chaque connexion on attribue un symbole à chaque joueur
-      cpt++;
-        if (cpt%2 == 0){
-        joueurs[cpt] = 1; // eq à X
-      } else
-        joueurs[cpt] = 4; // eq à O
-    }
-
+	    
     // creation de thread
      if (pthread_create(&thread1, NULL, thread_1, NULL)) {
     perror("pthread_create");
-    return EXIT_FAILURE;
+    return 1;
      }
-
-     // gestion de l'attente de fin de thread
-     if (pthread_join(thread1, NULL)) {
-    perror("pthread_join");
-    return EXIT_FAILURE;
+// a chaque connexion on attribue un symbole à chaque joueur
+      nombre_joueurs++;
+        if (nombre_joueurs%2 == 0){
+        joueur.symbole = 1; // eq à X
+      } else
+        joueur.symbole = 4; // eq à O
     }
 
-		/* traitement du message */
-		printf("reception d'un message.\n");
 
-		renvoi(nouv_socket_descriptor);
-
-		close(nouv_socket_descriptor);
-
+    }
+	   
+    if (nouv_socket_descriptor < 0)
+    {
+       perror("erreur : impossible d'accepter la connexion avec le client.");
+        exit(1);
     }
     return 0;
 }
